@@ -25,7 +25,9 @@ function dragula (initialContainers, options) {
   var _renderTimer; // timer for setTimeout renderMirrorImage
   var _lastDropTarget = null; // last container item was over
   var _grabbed; // holds mousedown context until first mousemove
-
+  var _linkElUnderCursor;
+  var _dragStartTime;
+  
   var o = options || {};
   if (o.moves === void 0) { o.moves = always; }
   if (o.accepts === void 0) { o.accepts = always; }
@@ -127,10 +129,20 @@ function dragula (initialContainers, options) {
     if (e.clientX !== void 0 && e.clientX === _moveX && e.clientY !== void 0 && e.clientY === _moveY) {
       return;
     }
+    
+    var clientX = getCoord('clientX', e);
+    var clientY = getCoord('clientY', e);
+    var elementBehindCursor = doc.elementFromPoint(clientX, clientY);
+    
+    if (isLinkEl(elementBehindCursor)) {
+        _linkElUnderCursor = elementBehindCursor;
+        _dragStartTime = Date.now();
+    } else {
+        _linkElUnderCursor = null;
+        _dragStartTime = null;
+    }
+    
     if (o.ignoreInputTextSelection) {
-      var clientX = getCoord('clientX', e);
-      var clientY = getCoord('clientY', e);
-      var elementBehindCursor = doc.elementFromPoint(clientX, clientY);
       if (isInput(elementBehindCursor)) {
         return;
       }
@@ -236,6 +248,17 @@ function dragula (initialContainers, options) {
     if (!drake.dragging) {
       return;
     }
+    
+    if (_linkElUnderCursor) {
+      var dragDur = Date.now() - _dragStartTime;
+      if (dragDur < 100) {
+        drake.emit('linkclick', _linkElUnderCursor.getAttribute('href'));
+        _linkElUnderCursor = _dragStartTime = null;
+        cancel();
+        return;
+      }
+    }
+    
     var item = _copy || _item;
     var clientX = getCoord('clientX', e);
     var clientY = getCoord('clientY', e);
@@ -562,6 +585,7 @@ function getRectWidth (rect) { return rect.width || (rect.right - rect.left); }
 function getRectHeight (rect) { return rect.height || (rect.bottom - rect.top); }
 function getParent (el) { return el.parentNode === doc ? null : el.parentNode; }
 function isInput (el) { return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || isEditable(el); }
+function isLinkEl (el) { return el.tagName === 'A'}
 function isEditable (el) {
   if (!el) { return false; } // no parents were editable
   if (el.contentEditable === 'false') { return false; } // stop the lookup
